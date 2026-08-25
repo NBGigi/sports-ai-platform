@@ -3,6 +3,8 @@ import os
 import requests
 from dotenv import load_dotenv
 
+from database.connection import get_connection
+from database.queries import insert_teams, insert_fixtures
 
 load_dotenv()
 
@@ -14,19 +16,27 @@ headers = {
     "x-apisports-key": api_key
 }
 
-params = {
-    "league": 39,
-    "season": 2024
-}
+def fetch_fixtures(league_id, season):
+    params = {
+        "league": league_id,
+        "season": season
+    }
 
-response = requests.get(
-    url,
-    headers=headers,
-    params=params
-)
+    response = requests.get(
+        url,
+        headers=headers,
+        params=params
+    )
 
+    data = response.json()
 
-data = response.json()
+    if response.status_code != 200:
+        raise Exception(f"API request failed for season {season}")
+
+    if data["errors"]:
+        raise Exception(f"API error for season {season}: {data['errors']}")
+
+    return data["response"]
 
 
 def parse_fixture(match):
@@ -46,15 +56,57 @@ def parse_fixture(match):
         "away_goals": match["goals"]["away"]
     }
 
+seasons = range(2020, 2027)
+
 parsed_matches = []
 
-for match in data["response"]:
-    parsed_match = parse_fixture(match)
-    parsed_matches.append(parsed_match)
+for season in seasons:
+    raw_matches = fetch_fixtures(39, season)
+
+    season_matches = []
+
+    for match in raw_matches:
+        parsed_match = parse_fixture(match)
+        season_matches.append(parsed_match)
+
+    parsed_matches.extend(season_matches)
+
+    print(f"Season {season}: {len(season_matches)} fixtures")
+
+print(f"Total fixtures: {len(parsed_matches)}")
+
+
+finished_matches = [
+    match
+    for match in parsed_matches
+    if match["season"] == 2026
+    and match["status"] == "Match Finished"
+]
+
+target_match = finished_matches[0]
+target_fixture_id = target_match["fixture_id"]
+
+
+teams = {}
+
+for match in parsed_matches:
+    teams[match["home_team_id"]] = match["home_team_name"]
+    teams[match["away_team_id"]] = match["away_team_name"]
+
+print("Number of teams:", len(teams))
+print(teams)
+
+connection = get_connection()
+
+insert_teams(connection, teams)
+insert_fixtures(connection, parsed_matches)
+
+connection.close()
+
+print("Teams and fixtures saved to database")
 
 statistics_url = "https://v3.football.api-sports.io/fixtures/statistics"
 
-target_fixture_id = 1208021
 
 statistics_params = {
     "fixture": target_fixture_id
@@ -70,7 +122,7 @@ statistics_data = statistics_response.json()
 
 def parse_percentage(value):
     if value is None:
-        return 0
+        return None
     return int(value.replace("%", ""))
 
 
@@ -103,11 +155,7 @@ def parse_team_statistics(team_data):
 
 
 
-target_match = next(
-    match
-    for match in parsed_matches
-    if match["fixture_id"] == target_fixture_id
-)
+
 parsed_statistics = [
     parse_team_statistics(team_data)
     for team_data in statistics_data["response"]
