@@ -165,8 +165,8 @@ def parse_team_statistics(team_data):
         "shots_outside_box": parse_int(stats.get("Shots outsidebox")),
         "corners": parse_int(stats.get("Corner Kicks")),
         "possession": parse_percentage(stats.get("Ball Possession")),
-        "yellow_cards": parse_int(stats.get("Yellow Cards")),
-        "red_cards": parse_int(stats.get("Red Cards")),
+        "yellow_cards": parse_int(stats.get("Yellow Cards")) or 0,
+        "red_cards": parse_int(stats.get("Red Cards")) or 0,
         "xg": parse_float(stats.get("expected_goals"))
     }
 
