@@ -1,10 +1,11 @@
 import os
+import time
 
 import requests
 from dotenv import load_dotenv
 
 from database.connection import get_connection
-from database.queries import insert_teams, insert_fixtures
+from database.queries import insert_teams, insert_fixtures, insert_fixture_statistics, get_existing_statistics_fixture_ids
 
 load_dotenv()
 
@@ -25,16 +26,22 @@ def fetch_fixtures(league_id, season):
     response = requests.get(
         url,
         headers=headers,
-        params=params
+        params=params,
+        timeout=15
     )
+
+    if response.status_code != 200:
+        raise Exception(
+            f"API request failed for season {season}: "
+            f"status {response.status_code}"
+        )
 
     data = response.json()
 
-    if response.status_code != 200:
-        raise Exception(f"API request failed for season {season}")
-
     if data["errors"]:
-        raise Exception(f"API error for season {season}: {data['errors']}")
+        raise Exception(
+            f"API error for season {season}: {data['errors']}"
+        )
 
     return data["response"]
 
@@ -76,17 +83,6 @@ for season in seasons:
 print(f"Total fixtures: {len(parsed_matches)}")
 
 
-finished_matches = [
-    match
-    for match in parsed_matches
-    if match["season"] == 2026
-    and match["status"] == "Match Finished"
-]
-
-target_match = finished_matches[0]
-target_fixture_id = target_match["fixture_id"]
-
-
 teams = {}
 
 for match in parsed_matches:
@@ -108,17 +104,33 @@ print("Teams and fixtures saved to database")
 statistics_url = "https://v3.football.api-sports.io/fixtures/statistics"
 
 
-statistics_params = {
-    "fixture": target_fixture_id
-}
+def fetch_fixture_statistics(fixture_id):
+    params = {
+        "fixture": fixture_id
+    }
 
-statistics_response = requests.get(
-    statistics_url,
-    headers=headers,
-    params=statistics_params
-)
+    response = requests.get(
+        statistics_url,
+        headers=headers,
+        params=params,
+        timeout=10
+    )
 
-statistics_data = statistics_response.json()
+    if response.status_code != 200:
+        raise Exception(
+            f"Statistics request failed for fixture {fixture_id}: "
+            f"status {response.status_code}"
+        )
+
+    data = response.json()
+
+    if data["errors"]:
+        raise Exception(
+            f"Statistics API error for fixture {fixture_id}: "
+            f"{data['errors']}"
+        )
+
+    return data["response"]
 
 def parse_percentage(value):
     if value is None:
@@ -131,6 +143,11 @@ def parse_float(value):
         return None
     return float(value)
 
+def parse_int(value):
+    if value is None:
+        return None
+    return int(value)
+
 def parse_team_statistics(team_data):
     stats = {}
 
@@ -140,55 +157,107 @@ def parse_team_statistics(team_data):
     return {
         "team_id": team_data["team"]["id"],
         "team_name": team_data["team"]["name"],
-        "shots_on_goal": stats.get("Shots on Goal", 0) or 0,
-        "shots_off_goal": stats.get("Shots off Goal", 0) or 0,
-        "total_shots": stats.get("Total Shots", 0) or 0,
-        "blocked_shots": stats.get("Blocked Shots", 0) or 0,
-        "shots_inside_box": stats.get("Shots insidebox", 0) or 0,
-        "shots_outside_box": stats.get("Shots outsidebox", 0) or 0,
-        "corners": stats.get("Corner Kicks", 0) or 0,
+        "shots_on_goal": parse_int(stats.get("Shots on Goal")),
+        "shots_off_goal": parse_int(stats.get("Shots off Goal")),
+        "total_shots": parse_int(stats.get("Total Shots")),
+        "blocked_shots": parse_int(stats.get("Blocked Shots")),
+        "shots_inside_box": parse_int(stats.get("Shots insidebox")),
+        "shots_outside_box": parse_int(stats.get("Shots outsidebox")),
+        "corners": parse_int(stats.get("Corner Kicks")),
         "possession": parse_percentage(stats.get("Ball Possession")),
-        "yellow_cards": stats.get("Yellow Cards") or 0,
-        "red_cards": stats.get("Red Cards") or 0,
+        "yellow_cards": parse_int(stats.get("Yellow Cards")),
+        "red_cards": parse_int(stats.get("Red Cards")),
         "xg": parse_float(stats.get("expected_goals"))
     }
 
 
-
-
-parsed_statistics = [
-    parse_team_statistics(team_data)
-    for team_data in statistics_data["response"]
+finished_matches = [
+    match
+    for match in parsed_matches
+    if match["status"] == "Match Finished"
 ]
 
-stats_by_team_id = {
-    team_stats["team_id"]: team_stats
-    for team_stats in parsed_statistics
-}
+statistics_connection = get_connection()
 
-home_stats = stats_by_team_id[target_match["home_team_id"]]
-away_stats = stats_by_team_id[target_match["away_team_id"]]
+existing_statistics_fixture_ids = (
+    get_existing_statistics_fixture_ids(statistics_connection)
+)
+
+pending_matches = [
+    match
+    for match in finished_matches
+    if match["fixture_id"] not in existing_statistics_fixture_ids
+]
+
+print("Finished matches:", len(finished_matches))
+print(
+    "Already have statistics:",
+    len(existing_statistics_fixture_ids)
+)
+print("Statistics still needed:", len(pending_matches))
+
+successful_matches = 0
+missing_statistics = 0
+failed_matches = 0
+
+total_pending = len(pending_matches)
+
+for index, match in enumerate(pending_matches, start=1):
+    fixture_id = match["fixture_id"]
+
+    try:
+        time.sleep(0.35)
+
+        raw_statistics = fetch_fixture_statistics(fixture_id)
+
+        if len(raw_statistics) != 2:
+            print(
+                f"[{index}/{total_pending}] "
+                f"{fixture_id} | "
+                f"{match['home_team_name']} vs "
+                f"{match['away_team_name']} "
+                f"| missing/partial statistics"
+            )
+
+            missing_statistics += 1
+            continue
+
+        parsed_statistics = [
+            parse_team_statistics(team_data)
+            for team_data in raw_statistics
+        ]
+
+        insert_fixture_statistics(
+            statistics_connection,
+            fixture_id,
+            parsed_statistics
+        )
+
+        successful_matches += 1
+
+        print(
+            f"[{index}/{total_pending}] "
+            f"{fixture_id} | "
+            f"{match['home_team_name']} vs "
+            f"{match['away_team_name']} "
+            f"| saved"
+        )
 
 
+    except Exception as error:
+        statistics_connection.rollback()
 
-match_snapshot = {
-    "fixture_id": target_match["fixture_id"],
-    "date": target_match["date"],
-    "status": target_match["status"],
-    "minute": target_match["minute"],
-    "league_id": target_match["league_id"],
-    "league_name": target_match["league_name"],
-    "season": target_match["season"],
+        failed_matches += 1
 
-    "home_team_id": target_match["home_team_id"],
-    "home_team_name": target_match["home_team_name"],
-    "home_goals": target_match["home_goals"],
-    "home_stats": home_stats,
+        print(
+            f"[{index}/{total_pending}] "
+            f"ERROR | fixture {fixture_id}: {error}"
+        )
 
-    "away_team_id": target_match["away_team_id"],
-    "away_team_name": target_match["away_team_name"],
-    "away_goals": target_match["away_goals"],
-    "away_stats": away_stats
-}
+statistics_connection.close()
 
-print(match_snapshot)
+print()
+print("Historical statistics backfill finished")
+print("Successful:", successful_matches)
+print("Missing/partial:", missing_statistics)
+print("Failed:", failed_matches)

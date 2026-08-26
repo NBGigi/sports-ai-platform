@@ -64,3 +64,118 @@ def insert_fixtures(connection, matches):
         )
 
     connection.commit()
+
+
+def insert_fixture_statistics(connection, fixture_id, team_statistics):
+    rows = []
+
+    for stats in team_statistics:
+        row = {
+            "fixture_id": fixture_id,
+            **stats
+        }
+
+        rows.append(row)
+
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            """
+            INSERT INTO fixture_statistics (
+                fixture_id,
+                team_id,
+                shots_on_goal,
+                shots_off_goal,
+                total_shots,
+                blocked_shots,
+                shots_inside_box,
+                shots_outside_box,
+                corners,
+                possession,
+                yellow_cards,
+                red_cards,
+                xg
+            )
+            VALUES (
+                %(fixture_id)s,
+                %(team_id)s,
+                %(shots_on_goal)s,
+                %(shots_off_goal)s,
+                %(total_shots)s,
+                %(blocked_shots)s,
+                %(shots_inside_box)s,
+                %(shots_outside_box)s,
+                %(corners)s,
+                %(possession)s,
+                %(yellow_cards)s,
+                %(red_cards)s,
+                %(xg)s
+            )
+            ON CONFLICT (fixture_id, team_id)
+            DO UPDATE SET
+                shots_on_goal = COALESCE(
+                    EXCLUDED.shots_on_goal,
+                    fixture_statistics.shots_on_goal
+                ),
+                shots_off_goal = COALESCE(
+                    EXCLUDED.shots_off_goal,
+                    fixture_statistics.shots_off_goal
+                ),
+                total_shots = COALESCE(
+                    EXCLUDED.total_shots,
+                    fixture_statistics.total_shots
+                ),
+                blocked_shots = COALESCE(
+                    EXCLUDED.blocked_shots,
+                    fixture_statistics.blocked_shots
+                ),
+                shots_inside_box = COALESCE(
+                    EXCLUDED.shots_inside_box,
+                    fixture_statistics.shots_inside_box
+                ),
+                shots_outside_box = COALESCE(
+                    EXCLUDED.shots_outside_box,
+                    fixture_statistics.shots_outside_box
+                ),
+                corners = COALESCE(
+                    EXCLUDED.corners,
+                    fixture_statistics.corners
+                ),
+                possession = COALESCE(
+                    EXCLUDED.possession,
+                    fixture_statistics.possession
+                ),
+                yellow_cards = COALESCE(
+                    EXCLUDED.yellow_cards,
+                    fixture_statistics.yellow_cards
+                ),
+                red_cards = COALESCE(
+                    EXCLUDED.red_cards,
+                    fixture_statistics.red_cards
+                ),
+                xg = COALESCE(
+                    EXCLUDED.xg,
+                    fixture_statistics.xg
+                );
+            """,
+            rows
+        )
+
+    connection.commit()
+
+def get_existing_statistics_fixture_ids(connection):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT fixture_id
+            FROM fixture_statistics
+            GROUP BY fixture_id
+            HAVING COUNT(DISTINCT team_id) = 2;
+            """
+        )
+
+        rows = cursor.fetchall()
+
+    return {
+        row[0]
+        for row in rows
+    }
