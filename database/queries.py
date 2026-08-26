@@ -33,6 +33,7 @@ def insert_fixtures(connection, matches):
                 date,
                 league_id,
                 season,
+                round,
                 status,
                 minute,
                 home_team_id,
@@ -45,6 +46,7 @@ def insert_fixtures(connection, matches):
                 %(date)s,
                 %(league_id)s,
                 %(season)s,
+                %(round)s,
                 %(status)s,
                 %(minute)s,
                 %(home_team_id)s,
@@ -55,8 +57,13 @@ def insert_fixtures(connection, matches):
             ON CONFLICT (fixture_id)
             DO UPDATE SET
                 date = EXCLUDED.date,
+                league_id = EXCLUDED.league_id,
+                season = EXCLUDED.season,
+                round = EXCLUDED.round,
                 status = EXCLUDED.status,
                 minute = EXCLUDED.minute,
+                home_team_id = EXCLUDED.home_team_id,
+                away_team_id = EXCLUDED.away_team_id,
                 home_goals = EXCLUDED.home_goals,
                 away_goals = EXCLUDED.away_goals;
             """,

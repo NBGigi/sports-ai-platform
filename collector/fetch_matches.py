@@ -55,30 +55,37 @@ def parse_fixture(match):
         "league_id": match["league"]["id"],
         "league_name": match["league"]["name"],
         "season": match["league"]["season"],
+        "round": match["league"]["round"],
         "home_team_id": match["teams"]["home"]["id"],
         "home_team_name": match["teams"]["home"]["name"],
         "away_team_id": match["teams"]["away"]["id"],
         "away_team_name": match["teams"]["away"]["name"],
         "home_goals": match["goals"]["home"],
-        "away_goals": match["goals"]["away"]
+        "away_goals": match["goals"]["away"],
     }
 
+leagues = [39, 40]
 seasons = range(2020, 2027)
 
 parsed_matches = []
 
-for season in seasons:
-    raw_matches = fetch_fixtures(39, season)
+for league_id in leagues:
+    for season in seasons:
+        raw_matches = fetch_fixtures(league_id, season)
 
-    season_matches = []
+        season_matches = []
 
-    for match in raw_matches:
-        parsed_match = parse_fixture(match)
-        season_matches.append(parsed_match)
+        for match in raw_matches:
+            parsed_match = parse_fixture(match)
+            season_matches.append(parsed_match)
 
-    parsed_matches.extend(season_matches)
+        parsed_matches.extend(season_matches)
 
-    print(f"Season {season}: {len(season_matches)} fixtures")
+        print(
+            f"League {league_id} | "
+            f"Season {season}: "
+            f"{len(season_matches)} fixtures"
+        )
 
 print(f"Total fixtures: {len(parsed_matches)}")
 
@@ -174,7 +181,8 @@ def parse_team_statistics(team_data):
 finished_matches = [
     match
     for match in parsed_matches
-    if match["status"] == "Match Finished"
+    if match["league_id"] == 39
+    and match["status"] == "Match Finished"
 ]
 
 statistics_connection = get_connection()
