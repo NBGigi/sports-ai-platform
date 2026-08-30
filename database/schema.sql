@@ -63,3 +63,14 @@ CREATE TABLE fixture_statistics (
     FOREIGN KEY (team_id)
         REFERENCES teams(team_id)
 );
+
+CREATE TABLE team_external_ids (
+    team_id INTEGER NOT NULL,
+    provider VARCHAR(50) NOT NULL,
+    external_id INTEGER NOT NULL,
+
+    PRIMARY KEY (team_id, provider),
+
+    FOREIGN KEY (team_id)
+        REFERENCES teams(team_id)
+);

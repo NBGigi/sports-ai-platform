@@ -186,3 +186,72 @@ def get_existing_statistics_fixture_ids(connection):
         row[0]
         for row in rows
     }
+
+def insert_team_external_ids(connection, mappings):
+    with connection.cursor() as cursor:
+        cursor.executemany(
+            """
+            INSERT INTO team_external_ids (
+                team_id,
+                provider,
+                external_id
+            )
+            VALUES (
+                %(team_id)s,
+                %(provider)s,
+                %(external_id)s
+            )
+            ON CONFLICT (team_id, provider)
+            DO UPDATE SET
+                external_id = EXCLUDED.external_id;
+            """,
+            mappings
+        )
+
+    connection.commit()
+
+def get_external_team_id(connection, team_id, provider):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT external_id
+            FROM team_external_ids
+            WHERE team_id = %s
+              AND provider = %s;
+            """,
+            (team_id, provider)
+        )
+
+        row = cursor.fetchone()
+
+    if row is None:
+        return None
+
+    return row[0]
+
+def get_fixture(connection, fixture_id):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                fixture_id,
+                date,
+                home_team_id,
+                away_team_id
+            FROM fixtures
+            WHERE fixture_id = %s;
+            """,
+            (fixture_id,)
+        )
+
+        row = cursor.fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "fixture_id": row[0],
+        "date": row[1],
+        "home_team_id": row[2],
+        "away_team_id": row[3],
+    }
