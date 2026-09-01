@@ -255,3 +255,59 @@ def get_fixture(connection, fixture_id):
         "home_team_id": row[2],
         "away_team_id": row[3],
     }
+
+
+def insert_live_snapshot(connection, snapshot):
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO live_fixture_snapshots (
+                fixture_id,
+                team_id,
+                captured_at,
+                minute,
+                home_goals,
+                away_goals,
+                shots_on_goal,
+                shots_off_goal,
+                total_shots,
+                blocked_shots,
+                shots_inside_box,
+                shots_outside_box,
+                corners,
+                possession,
+                yellow_cards,
+                red_cards,
+                xg
+            )
+            VALUES (
+                %(fixture_id)s,
+                %(team_id)s,
+                %(captured_at)s,
+                %(minute)s,
+                %(home_goals)s,
+                %(away_goals)s,
+                %(shots_on_goal)s,
+                %(shots_off_goal)s,
+                %(total_shots)s,
+                %(blocked_shots)s,
+                %(shots_inside_box)s,
+                %(shots_outside_box)s,
+                %(corners)s,
+                %(possession)s,
+                %(yellow_cards)s,
+                %(red_cards)s,
+                %(xg)s
+            )
+            ON CONFLICT (
+                fixture_id,
+                team_id,
+                captured_at
+            )
+            DO NOTHING;
+            """,
+            snapshot
+        )
+
+    connection.commit()

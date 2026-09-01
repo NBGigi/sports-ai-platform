@@ -74,3 +74,38 @@ CREATE TABLE team_external_ids (
     FOREIGN KEY (team_id)
         REFERENCES teams(team_id)
 );
+
+CREATE TABLE IF NOT EXISTS live_fixture_snapshots (
+    fixture_id INTEGER NOT NULL REFERENCES fixtures(fixture_id),
+    team_id INTEGER NOT NULL REFERENCES teams(team_id),
+
+    captured_at TIMESTAMPTZ NOT NULL,
+
+    minute INTEGER,
+
+    home_goals INTEGER,
+    away_goals INTEGER,
+
+    shots_on_goal INTEGER,
+    shots_off_goal INTEGER,
+    total_shots INTEGER,
+    blocked_shots INTEGER,
+
+    shots_inside_box INTEGER,
+    shots_outside_box INTEGER,
+
+    corners INTEGER,
+
+    possession NUMERIC(5,2),
+
+    yellow_cards INTEGER,
+    red_cards INTEGER,
+
+    xg NUMERIC(6,3),
+
+    PRIMARY KEY (
+        fixture_id,
+        team_id,
+        captured_at
+    )
+);
