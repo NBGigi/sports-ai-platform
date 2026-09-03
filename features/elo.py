@@ -3,7 +3,8 @@ from database.connection import get_connection
 
 DEFAULT_ELO = 1500
 K_FACTOR = 20
-HOME_ADVANTAGE = 65
+HOME_ADVANTAGE = 40
+LEAGUE_GAP = 250
 
 
 def expected_score(
@@ -95,12 +96,9 @@ def get_finished_matches():
     return rows
 
 
-def calculate_elo_history():
+def get_transition_map(matches):
 
-    matches = get_finished_matches()
-
-    ratings = {}
-    history = []
+    leagues_by_team_season = {}
 
     for match in matches:
 
@@ -115,14 +113,162 @@ def calculate_elo_history():
             away_goals,
         ) = match
 
+        for team_id in (
+            home_team_id,
+            away_team_id,
+        ):
+
+            key = (
+                team_id,
+                season,
+            )
+
+            leagues_by_team_season[
+                key
+            ] = league_id
+
+    transitions = {}
+
+    for (
+        team_id,
+        season
+    ), current_league in (
+        leagues_by_team_season.items()
+    ):
+
+        next_key = (
+            team_id,
+            season + 1,
+        )
+
+        if (
+            next_key
+            not in leagues_by_team_season
+        ):
+            continue
+
+        next_league = (
+            leagues_by_team_season[
+                next_key
+            ]
+        )
+
+        if (
+            current_league == 40
+            and next_league == 39
+        ):
+            transition_type = "promotion"
+
+        elif (
+            current_league == 39
+            and next_league == 40
+        ):
+            transition_type = "relegation"
+
+        else:
+            continue
+
+        transitions[
+            (
+                team_id,
+                season + 1,
+            )
+        ] = transition_type
+
+    return transitions
+
+
+def apply_league_transition(
+    rating,
+    transition_type,
+):
+
+    if transition_type == "promotion":
+        return rating - LEAGUE_GAP
+
+    if transition_type == "relegation":
+        return rating + LEAGUE_GAP
+
+    return rating
+
+
+def calculate_elo_history():
+
+    matches = get_finished_matches()
+
+    transition_map = get_transition_map(
+        matches
+    )
+
+    ratings = {}
+    history = []
+
+    applied_transitions = set()
+
+    for match in matches:
+
+        (
+            fixture_id,
+            date,
+            league_id,
+            season,
+            home_team_id,
+            away_team_id,
+            home_goals,
+            away_goals,
+        ) = match
+
+        for team_id in (
+            home_team_id,
+            away_team_id,
+        ):
+
+            transition_key = (
+                team_id,
+                season,
+            )
+
+            if (
+                transition_key
+                in transition_map
+                and transition_key
+                not in applied_transitions
+            ):
+
+                current_rating = ratings.get(
+                    team_id,
+                    DEFAULT_ELO,
+                )
+
+                transition_type = (
+                    transition_map[
+                        transition_key
+                    ]
+                )
+
+                adjusted_rating = (
+                    apply_league_transition(
+                        current_rating,
+                        transition_type,
+                    )
+                )
+
+                ratings[
+                    team_id
+                ] = adjusted_rating
+
+                applied_transitions.add(
+                    transition_key
+                )
+
         home_elo_before = ratings.get(
             home_team_id,
-            DEFAULT_ELO
+            DEFAULT_ELO,
         )
 
         away_elo_before = ratings.get(
             away_team_id,
-            DEFAULT_ELO
+            DEFAULT_ELO,
         )
 
         home_expected = expected_score(
@@ -192,6 +338,12 @@ def calculate_elo_history():
                 "away_elo_before":
                     away_elo_before,
 
+                "elo_difference_before":
+                    (
+                        home_elo_before
+                        - away_elo_before
+                    ),
+
                 "home_expected":
                     home_expected,
 
@@ -214,10 +366,45 @@ def calculate_elo_history():
 
     return history, ratings
 
+def get_current_league_teams(
+    matches,
+    season,
+    league_id,
+):
+    teams = set()
+
+    for match in matches:
+
+        (
+            fixture_id,
+            date,
+            match_league_id,
+            match_season,
+            home_team_id,
+            away_team_id,
+            home_goals,
+            away_goals,
+        ) = match
+
+        if (
+            match_season == season
+            and match_league_id == league_id
+        ):
+            teams.add(home_team_id)
+            teams.add(away_team_id)
+
+    return teams
+
 
 if __name__ == "__main__":
 
-    history, ratings = calculate_elo_history()
+    history, ratings = (
+        calculate_elo_history()
+    )
+
+    matches = get_finished_matches()
+
+    CURRENT_SEASON = 2026
 
     print(
         "MATCHES PROCESSED:",
@@ -229,18 +416,71 @@ if __name__ == "__main__":
         len(ratings)
     )
 
-    print(
-        "\nTOP 10 CURRENT ELO:"
+    premier_league_teams = (
+        get_current_league_teams(
+            matches,
+            CURRENT_SEASON,
+            39,
+        )
     )
 
-    top_teams = sorted(
-        ratings.items(),
+    championship_teams = (
+        get_current_league_teams(
+            matches,
+            CURRENT_SEASON,
+            40,
+        )
+    )
+
+    premier_league_ratings = [
+        (
+            team_id,
+            ratings[team_id]
+        )
+        for team_id
+        in premier_league_teams
+        if team_id in ratings
+    ]
+
+    championship_ratings = [
+        (
+            team_id,
+            ratings[team_id]
+        )
+        for team_id
+        in championship_teams
+        if team_id in ratings
+    ]
+
+    premier_league_ratings.sort(
         key=lambda item: item[1],
         reverse=True,
-    )[:10]
+    )
 
-    for team_id, elo in top_teams:
+    championship_ratings.sort(
+        key=lambda item: item[1],
+        reverse=True,
+    )
 
+    print(
+        "\nPREMIER LEAGUE CURRENT ELO:"
+    )
+
+    for team_id, elo in (
+        premier_league_ratings
+    ):
+        print(
+            team_id,
+            round(elo, 2)
+        )
+
+    print(
+        "\nCHAMPIONSHIP CURRENT ELO:"
+    )
+
+    for team_id, elo in (
+        championship_ratings
+    ):
         print(
             team_id,
             round(elo, 2)
