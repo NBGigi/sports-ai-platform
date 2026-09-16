@@ -764,101 +764,101 @@ if __name__ == "__main__":
         .tail(10)
         .to_string(index=False)
     )
+    model_features = [
+        "elo_diff",
 
-model_features = [
-    "elo_diff",
+        "last5_ppg_diff",
+        "last10_ppg_diff",
 
-    "last5_ppg_diff",
-    "last10_ppg_diff",
+        "last5_goals_for_avg_diff",
+        "last10_goals_for_avg_diff",
 
-    "last5_goals_for_avg_diff",
-    "last10_goals_for_avg_diff",
+        "last5_goals_against_avg_diff",
+        "last10_goals_against_avg_diff",
 
-    "last5_goals_against_avg_diff",
-    "last10_goals_against_avg_diff",
+        "last5_shots_on_target_for_avg_diff",
+        "last10_shots_on_target_for_avg_diff",
 
-    "last5_shots_on_target_for_avg_diff",
-    "last10_shots_on_target_for_avg_diff",
+        "last5_shots_on_target_against_avg_diff",
+        "last10_shots_on_target_against_avg_diff",
 
-    "last5_shots_on_target_against_avg_diff",
-    "last10_shots_on_target_against_avg_diff",
-
-    "last5_history_min",
-    "last10_history_min",
-]
-
-print(
-    "\n=== FINAL FEATURE DATASET AUDIT ==="
-)
-
-print(
-    "Rows:",
-    len(fixture_dataset)
-)
-
-print(
-    "Unique fixtures:",
-    fixture_dataset["fixture_id"].nunique()
-)
-
-print(
-    "Duplicate fixture IDs:",
-    fixture_dataset["fixture_id"].duplicated().sum()
-)
-
-print(
-    "\nMissing values:"
-)
-
-print(
-    fixture_dataset[
-        model_features
+        "last5_history_min",
+        "last10_history_min",
     ]
-    .isna()
-    .sum()
-)
 
-print(
-    "\nFeature ranges:"
-)
+    print(
+        "\n=== FINAL FEATURE DATASET AUDIT ==="
+    )
 
-print(
-    fixture_dataset[
-        model_features
-    ]
-    .agg(["min", "max"])
-    .T
-)
+    print(
+        "Rows:",
+        len(fixture_dataset)
+    )
 
-print(
-    "\nFixtures by season:"
-)
+    print(
+        "Unique fixtures:",
+        fixture_dataset["fixture_id"].nunique()
+    )
 
-print(
-    fixture_dataset[
-        "season"
-    ]
-    .value_counts()
-    .sort_index()
-)
+    print(
+        "Duplicate fixture IDs:",
+        fixture_dataset["fixture_id"].duplicated().sum()
+    )
 
-print(
-    "\nLabels:"
-)
+    print(
+        "\nMissing values:"
+    )
 
-print(
-    fixture_dataset[
-        "label_1x2"
-    ]
-    .value_counts()
-)
+    print(
+        fixture_dataset[
+            model_features
+        ]
+        .isna()
+        .sum()
+    )
 
-print(
-    "\nDate range:"
-)
+    print(
+        "\nFeature ranges:"
+    )
 
-print(
-    fixture_dataset["date"].min(),
-    "->",
-    fixture_dataset["date"].max()
-)
+    print(
+        fixture_dataset[
+            model_features
+        ]
+        .agg(["min", "max"])
+        .T
+    )
+
+    print(
+        "\nFixtures by season:"
+    )
+
+    print(
+        fixture_dataset[
+            "season"
+        ]
+        .value_counts()
+        .sort_index()
+    )
+
+    print(
+        "\nLabels:"
+    )
+
+    print(
+        fixture_dataset[
+            "label_1x2"
+        ]
+        .value_counts()
+    )
+
+    print(
+        "\nDate range:"
+    )
+
+    print(
+        fixture_dataset["date"].min(),
+        "->",
+        fixture_dataset["date"].max()
+    )
+
