@@ -337,6 +337,10 @@ def run_demo():
         ]
     )
 
+    input(
+        "\nPress Enter to clean up demo data..."
+    )
+
     cleanup_demo(
         fixture,
         event,

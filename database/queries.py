@@ -584,3 +584,82 @@ def get_current_fixture_state(
         "away_team_id": row[7],
         "away_team_name": row[8],
     }
+
+def get_upcoming_fixture_predictions(
+    connection,
+    model_version="v1",
+    limit=10,
+):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                f.fixture_id,
+                f.date,
+                f.round,
+
+                home_team.team_name
+                    AS home_team,
+
+                away_team.team_name
+                    AS away_team,
+
+                p.model_version,
+
+                p.home_elo,
+                p.away_elo,
+                p.elo_diff,
+
+                p.prob_home,
+                p.prob_draw,
+                p.prob_away
+
+            FROM fixture_predictions p
+
+            JOIN fixtures f
+                ON f.fixture_id
+                = p.fixture_id
+
+            JOIN teams home_team
+                ON home_team.team_id
+                = f.home_team_id
+
+            JOIN teams away_team
+                ON away_team.team_id
+                = f.away_team_id
+
+            WHERE p.model_version = %s
+              AND f.status = 'Not Started'
+              AND f.date >= NOW()
+
+            ORDER BY
+                f.date,
+                f.fixture_id
+
+            LIMIT %s;
+            """,
+            (
+                model_version,
+                limit,
+            ),
+        )
+
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "fixture_id": row[0],
+            "date": row[1],
+            "round": row[2],
+            "home_team": row[3],
+            "away_team": row[4],
+            "model_version": row[5],
+            "home_elo": row[6],
+            "away_elo": row[7],
+            "elo_diff": row[8],
+            "prob_home": row[9],
+            "prob_draw": row[10],
+            "prob_away": row[11],
+        }
+        for row in rows
+    ]
