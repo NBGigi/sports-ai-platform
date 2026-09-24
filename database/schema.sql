@@ -109,3 +109,41 @@ CREATE TABLE IF NOT EXISTS live_fixture_snapshots (
         captured_at
     )
 );
+
+CREATE TABLE IF NOT EXISTS fixture_predictions (
+    fixture_id INTEGER NOT NULL
+        REFERENCES fixtures(fixture_id),
+
+    model_version VARCHAR(50) NOT NULL,
+
+    created_at TIMESTAMPTZ
+        NOT NULL DEFAULT NOW(),
+
+    home_elo DOUBLE PRECISION NOT NULL,
+    away_elo DOUBLE PRECISION NOT NULL,
+    elo_diff DOUBLE PRECISION NOT NULL,
+
+    prob_home DOUBLE PRECISION NOT NULL,
+    prob_draw DOUBLE PRECISION NOT NULL,
+    prob_away DOUBLE PRECISION NOT NULL,
+
+    PRIMARY KEY (
+        fixture_id,
+        model_version
+    ),
+
+    CHECK (
+        prob_home >= 0
+        AND prob_home <= 1
+    ),
+
+    CHECK (
+        prob_draw >= 0
+        AND prob_draw <= 1
+    ),
+
+    CHECK (
+        prob_away >= 0
+        AND prob_away <= 1
+    )
+);
