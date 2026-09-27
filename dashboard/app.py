@@ -24,7 +24,7 @@ def get_json(
     response = requests.get(
         f"{API_BASE_URL}{path}",
         params=params,
-        timeout=5,
+        timeout=(10, 90),
     )
 
     response.raise_for_status()
