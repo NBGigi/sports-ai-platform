@@ -11,6 +11,7 @@ from streaming.kafka_producer import (
     build_producer,
     send_event,
 )
+import time
 
 
 load_dotenv()
@@ -26,6 +27,12 @@ API_URL = (
 
 PREMIER_LEAGUE_ID = 39
 
+POLL_INTERVAL_SECONDS = int(
+    os.getenv(
+        "LIVE_POLL_INTERVAL_SECONDS",
+        "60",
+    )
+)
 
 def fetch_live_premier_league_matches():
     if not API_KEY:
@@ -228,5 +235,58 @@ def publish_live_matches():
     return sent
 
 
+def run_live_polling():
+    if not API_KEY:
+        raise ValueError(
+            "API_FOOTBALL_KEY is missing."
+        )
+
+    print(
+        "=== LIVE POLLING STARTED ==="
+    )
+
+    print(
+        "Polling interval:",
+        POLL_INTERVAL_SECONDS,
+        "seconds",
+    )
+
+    try:
+        while True:
+            print(
+                "\nChecking live matches at:",
+                datetime.now(
+                    timezone.utc
+                ).isoformat(),
+            )
+
+            try:
+                publish_live_matches()
+
+            except (
+                requests.RequestException,
+                RuntimeError,
+            ) as error:
+                print(
+                    "Live polling iteration failed:",
+                    error,
+                )
+
+            print(
+                "\nNext poll in",
+                POLL_INTERVAL_SECONDS,
+                "seconds..."
+            )
+
+            time.sleep(
+                POLL_INTERVAL_SECONDS
+            )
+
+    except KeyboardInterrupt:
+        print(
+            "\nLive polling stopped."
+        )
+
+
 if __name__ == "__main__":
-    publish_live_matches()
+    run_live_polling()
