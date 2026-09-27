@@ -4,3 +4,5 @@ __pycache__/
 .idea/
 data/raw/
 model_artifacts/
+package_cache/
+.offline_test_venv/

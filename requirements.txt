@@ -10,3 +10,4 @@ psycopg==3.3.4
 confluent-kafka==2.15.1
 fastapi==0.141.1
 uvicorn==0.53.0
+streamlit==1.64.0
