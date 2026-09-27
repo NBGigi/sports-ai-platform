@@ -663,3 +663,27 @@ def get_upcoming_fixture_predictions(
         }
         for row in rows
     ]
+
+def get_live_prediction_fixture_ids(
+    connection,
+    model_version="v1",
+):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT f.fixture_id
+            FROM fixtures f
+            JOIN fixture_predictions p
+                ON p.fixture_id = f.fixture_id
+            WHERE p.model_version = %s
+              AND f.status <> 'Not Started'
+              AND f.status <> 'Match Finished'
+              AND f.minute IS NOT NULL
+            ORDER BY f.date, f.fixture_id;
+            """,
+            (model_version,),
+        )
+
+        rows = cursor.fetchall()
+
+    return [row[0] for row in rows]

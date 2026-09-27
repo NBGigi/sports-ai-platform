@@ -9,6 +9,7 @@ from database.connection import (
 
 from database.queries import (
     get_upcoming_fixture_predictions,
+    get_live_prediction_fixture_ids
 )
 
 from modeling.live_prediction import (
@@ -106,3 +107,31 @@ def live_prediction(
         ) from error
 
     return prediction
+
+@app.get("/predictions/live")
+def live_predictions():
+    connection = get_connection()
+
+    try:
+        fixture_ids = get_live_prediction_fixture_ids(
+            connection,
+            model_version=MODEL_VERSION,
+        )
+    finally:
+        connection.close()
+
+    predictions = []
+
+    for fixture_id in fixture_ids:
+        prediction = predict_live_fixture(
+            fixture_id=fixture_id,
+            model_version=MODEL_VERSION,
+        )
+
+        predictions.append(prediction)
+
+    return {
+        "model_version": MODEL_VERSION,
+        "count": len(predictions),
+        "predictions": predictions,
+    }
