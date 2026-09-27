@@ -17,14 +17,10 @@ st.set_page_config(
 )
 
 
-st.title("⚽ Sports AI Platform")
-
-st.caption(
-    "Premier League pre-match and live win probabilities"
-)
-
-
-def get_json(path, params=None):
+def get_json(
+    path,
+    params=None,
+):
     response = requests.get(
         f"{API_BASE_URL}{path}",
         params=params,
@@ -37,37 +33,84 @@ def get_json(path, params=None):
 
 
 def probability_percent(value):
-    return f"{value * 100:.1f}%"
+    return f"{float(value) * 100:.1f}%"
 
 
-def render_probabilities(probabilities):
-    home_col, draw_col, away_col = st.columns(3)
-
-    home_col.metric(
-        "Home",
-        probability_percent(
-            probabilities["H"]
-        ),
+def render_probability_metrics(
+    probabilities,
+    labels,
+    baseline=None,
+):
+    keys = (
+        "H",
+        "D",
+        "A",
     )
 
-    draw_col.metric(
-        "Draw",
-        probability_percent(
-            probabilities["D"]
-        ),
-    )
+    columns = st.columns(3)
 
-    away_col.metric(
-        "Away",
-        probability_percent(
-            probabilities["A"]
-        ),
-    )
+    for column, key, label in zip(
+        columns,
+        keys,
+        labels,
+    ):
+        value = float(
+            probabilities[key]
+        )
+
+        column.metric(
+            label,
+            probability_percent(value),
+        )
+
+        column.progress(value)
+
+        if baseline is not None:
+            baseline_value = float(
+                baseline[key]
+            )
+
+            change_pp = (
+                value
+                - baseline_value
+            ) * 100
+
+            column.caption(
+                f"vs pre-match: "
+                f"{change_pp:+.1f} pp"
+            )
 
 
-@st.fragment(run_every="5s")
+st.title(
+    "⚽ Sports AI Platform"
+)
+
+st.caption(
+    "Premier League probability engine "
+    "• Model v1 "
+    "• Live updates every 5 seconds"
+)
+
+st.info(
+    "Pre-match probabilities are generated "
+    "independently from football data. "
+    "Live probabilities update from the "
+    "current score and match minute."
+)
+
+
+@st.fragment(
+    run_every="5s"
+)
 def live_section():
-    st.subheader("🔴 Live Matches")
+    st.subheader(
+        "🔴 Live Matches"
+    )
+
+    st.caption(
+        "This section automatically "
+        "refreshes every 5 seconds."
+    )
 
     try:
         data = get_json(
@@ -82,53 +125,91 @@ def live_section():
 
     if data["count"] == 0:
         st.info(
-            "No Premier League matches are live."
+            "No Premier League matches "
+            "are live."
         )
         return
 
-    for prediction in data["predictions"]:
-        with st.container(border=True):
+    for prediction in data[
+        "predictions"
+    ]:
+        home_team = prediction[
+            "home_team"
+        ]
+
+        away_team = prediction[
+            "away_team"
+        ]
+
+        prematch = prediction[
+            "prematch_probabilities"
+        ]
+
+        live = prediction[
+            "live_probabilities"
+        ]
+
+        with st.container(
+            border=True
+        ):
             st.markdown(
-                f"### "
-                f"{prediction['home_team']} "
-                f"{prediction['home_goals']} - "
+                f"## "
+                f"{home_team} "
+                f"{prediction['home_goals']} "
+                f"– "
                 f"{prediction['away_goals']} "
-                f"{prediction['away_team']}"
-            )
-
-            st.caption(
-                f"{prediction['status']} "
-                f"• {prediction['minute']}'"
+                f"{away_team}"
             )
 
             st.markdown(
-                "**Pre-match probabilities**"
-            )
-
-            render_probabilities(
-                prediction[
-                    "prematch_probabilities"
-                ]
+                f"**{prediction['minute']}'**"
+                f" · "
+                f"{prediction['status']}"
             )
 
             st.markdown(
-                "**Live probabilities**"
+                "### Live probabilities"
             )
 
-            render_probabilities(
-                prediction[
-                    "live_probabilities"
-                ]
+            render_probability_metrics(
+                live,
+                (
+                    home_team,
+                    "Draw",
+                    away_team,
+                ),
+                baseline=prematch,
             )
 
+            with st.expander(
+                "View pre-match baseline"
+            ):
+                render_probability_metrics(
+                    prematch,
+                    (
+                        home_team,
+                        "Draw",
+                        away_team,
+                    ),
+                )
 
+@st.fragment(run_every="30s")
 def upcoming_section():
-    st.subheader("📅 Upcoming Matches")
+    st.subheader(
+        "📅 Upcoming Matches"
+    )
+
+    st.caption(
+        "Frozen pre-match predictions "
+        "from model v1."
+    )
 
     try:
         data = get_json(
             "/predictions/upcoming",
-            params={"limit": 10},
+            params={
+                "limit": 10
+            },
         )
 
     except requests.RequestException as error:
@@ -139,26 +220,56 @@ def upcoming_section():
 
     if data["count"] == 0:
         st.info(
-            "No upcoming predictions available."
+            "No upcoming predictions "
+            "available."
         )
         return
 
-    for prediction in data["predictions"]:
-        with st.container(border=True):
-            st.markdown(
-                f"### "
-                f"{prediction['home_team']} "
-                f"vs "
-                f"{prediction['away_team']}"
-            )
+    rows = []
 
-            render_probabilities(
-                {
-                    "H": prediction["prob_home"],
-                    "D": prediction["prob_draw"],
-                    "A": prediction["prob_away"],
-                }
-            )
+    for prediction in data[
+        "predictions"
+    ]:
+        rows.append(
+            {
+                "Fixture":
+                    (
+                        f"{prediction['home_team']} "
+                        f"vs "
+                        f"{prediction['away_team']}"
+                    ),
+
+                "Home":
+                    probability_percent(
+                        prediction[
+                            "prob_home"
+                        ]
+                    ),
+
+                "Draw":
+                    probability_percent(
+                        prediction[
+                            "prob_draw"
+                        ]
+                    ),
+
+                "Away":
+                    probability_percent(
+                        prediction[
+                            "prob_away"
+                        ]
+                    ),
+
+                "Round":
+                    prediction["round"],
+            }
+        )
+
+    st.dataframe(
+        rows,
+        hide_index=True,
+        use_container_width=True,
+    )
 
 
 live_section()
@@ -166,3 +277,31 @@ live_section()
 st.divider()
 
 upcoming_section()
+
+
+with st.expander(
+    "ℹ️ How the model works"
+):
+    st.markdown(
+        """
+**Pre-match model**
+
+Model v1 uses a calibrated multiclass
+Logistic Regression model based on the
+pre-match Elo difference between the teams.
+
+**In-play model**
+
+During a live match, the frozen pre-match
+probabilities are converted into expected
+goal rates. A Poisson model then recalculates
+the probabilities using the current minute
+and score.
+
+**Important**
+
+Bookmaker odds are not used as model
+features. They are reserved for independent
+benchmarking.
+"""
+    )
